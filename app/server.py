@@ -59,7 +59,7 @@ def stream():
                     event = q.get(timeout=15)
                     yield f"event: tick\ndata: {json.dumps(event)}\n\n"
                 except Exception:
-                    yield ": keep-alive\n\n"  # SSE comment line, keeps connection open
+                    yield ": keep-alive\n\n"  # SSE comment line to keep connection open
         finally:
             pipeline.unsubscribe(q)
 
