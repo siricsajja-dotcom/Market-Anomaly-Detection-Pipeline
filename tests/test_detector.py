@@ -14,7 +14,7 @@ def make_trade(symbol, price, volume, ts=0.0):
 def test_zscore_flags_large_price_jump():
     det = RollingZScoreDetector(z_threshold=3.0, warmup_trades=20)
     price = 100.0
-    # Warm up with small, stable noise so std stays low.
+    # Warm up with small, stable noise so std will stay low.
     for i in range(40):
         price *= 1 + (0.0005 if i % 2 == 0 else -0.0005)
         det.evaluate(make_trade("TEST", price, 100, ts=i))
