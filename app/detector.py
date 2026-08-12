@@ -46,7 +46,7 @@ class Alert:
     volume: int
     reasons: list[str] = field(default_factory=list)
     scores: dict = field(default_factory=dict)
-    # Ground truth passthrough, purely for the demo/eval script.
+    # Ground truth passthrough for the demo/eval script.
     is_injected_anomaly: bool = False
     anomaly_kind: Optional[str] = None
 
