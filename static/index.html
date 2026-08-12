@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SURVEIL — live anomaly feed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0d10;
+    --panel: #11161b;
+    --panel-2: #161c22;
+    --line: #212a32;
+    --text: #e7ebee;
+    --muted: #7c8a97;
+    --green: #3ecf8e;
+    --red: #ff5c5c;
+    --amber: #f2a93b;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --disp: 'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--mono);}
+  ::selection{background:var(--amber);color:#0a0d10;}
+
+  a{color:inherit;}
+
+  /* ---- ticker tape (signature element) ---- */
+  .ticker-wrap{
+    background:#000;
+    border-bottom:1px solid var(--line);
+    overflow:hidden;
+    white-space:nowrap;
+    height:34px;
+    display:flex;
+    align-items:center;
+  }
+  .ticker{
+    display:inline-flex;
+    animation: scroll-left 32s linear infinite;
+    padding-left:100%;
+  }
+  @keyframes scroll-left{
+    from{ transform: translateX(0); }
+    to{ transform: translateX(-100%); }
+  }
+  .ticker-item{
+    padding:0 22px;
+    font-size:12.5px;
+    letter-spacing:.02em;
+    color:var(--muted);
+    border-right:1px solid #1b2127;
+  }
+  .ticker-item b{color:var(--text); font-weight:600;}
+  .up{color:var(--green);}
+  .down{color:var(--red);}
+
+  header{
+    padding:22px 28px 16px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .brand{
+    font-family:var(--disp);
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:-0.01em;
+  }
+  .brand span{color:var(--green);}
+  .brand small{
+    display:block;
+    font-family:var(--mono);
+    font-weight:400;
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    margin-top:2px;
+  }
+  .hstats{display:flex; gap:26px; font-size:12px;}
+  .hstats div{display:flex; flex-direction:column; gap:2px; align-items:flex-end;}
+  .hstats .val{font-family:var(--disp); font-size:19px; font-weight:600;}
+  .hstats .lbl{color:var(--muted); letter-spacing:.06em; text-transform:uppercase; font-size:10px;}
+  .live-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--green);
+    display:inline-block;margin-right:6px;
+    box-shadow:0 0 0 0 rgba(62,207,142,.6);
+    animation:pulse 1.8s infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(62,207,142,.55);}
+    70%{box-shadow:0 0 0 8px rgba(62,207,142,0);}
+    100%{box-shadow:0 0 0 0 rgba(62,207,142,0);}
+  }
+
+  main{
+    display:grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap:1px;
+    background:var(--line);
+    min-height:calc(100vh - 92px);
+  }
+  @media (max-width: 900px){ main{grid-template-columns:1fr;} }
+
+  section{background:var(--bg); padding:22px 26px;}
+  h2{
+    font-family:var(--disp);
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--muted);
+    margin:0 0 16px;
+    display:flex; align-items:center; gap:8px;
+  }
+  h2 .count{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-size:11px;
+    padding:1px 8px;
+    border-radius:20px;
+  }
+
+  /* symbol table */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{
+    text-align:left;
+    color:var(--muted);
+    font-weight:500;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  td{padding:10px 10px; border-bottom:1px solid #161b20;}
+  tr.flash td{ animation: rowflash 900ms ease-out; }
+  @keyframes rowflash{ from{background:rgba(242,169,59,.18);} to{background:transparent;} }
+  .sym{font-weight:700; letter-spacing:.02em;}
+  .num{text-align:right; font-variant-numeric:tabular-nums;}
+
+  /* alerts */
+  .alert{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-left:3px solid var(--red);
+    border-radius:6px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    font-size:12.5px;
+    animation: slidein 260ms ease-out;
+  }
+  .alert.injected{border-left-color:var(--amber);}
+  @keyframes slidein{ from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
+  .alert-top{display:flex; justify-content:space-between; gap:10px; margin-bottom:6px;}
+  .alert-sym{font-weight:700; font-family:var(--disp);}
+  .alert-time{color:var(--muted); font-size:11px;}
+  .alert-reason{color:#c7cfd6; line-height:1.5;}
+  .tag{
+    display:inline-block; font-size:10px; padding:1px 7px; border-radius:20px;
+    border:1px solid var(--line); color:var(--muted); margin-top:8px; margin-right:6px;
+    text-transform:uppercase; letter-spacing:.04em;
+  }
+  #alerts{max-height:640px; overflow-y:auto; padding-right:4px;}
+  #alerts::-webkit-scrollbar{width:6px;}
+  #alerts::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+
+  .empty{color:var(--muted); font-size:12.5px; padding:20px 0;}
+  footer{
+    padding:14px 28px; color:var(--muted); font-size:11px;
+    border-top:1px solid var(--line); display:flex; justify-content:space-between;
+  }
+</style>
+</head>
+<body>
+
+<div class="ticker-wrap"><div class="ticker" id="ticker"></div></div>
+
+<header>
+  <div class="brand">SUR<span>VEIL</span><small>simulated real-time trade surveillance</small></div>
+  <div class="hstats">
+    <div><span class="val" id="statTrades">0</span><span class="lbl"><span class="live-dot"></span>trades seen</span></div>
+    <div><span class="val" id="statAlerts">0</span><span class="lbl">alerts raised</span></div>
+    <div><span class="val" id="statRate">0.0%</span><span class="lbl">flag rate</span></div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Symbols <span class="count" id="symCount">0</span></h2>
+    <table>
+      <thead><tr><th>Symbol</th><th class="num">Last</th><th class="num">Chg</th><th class="num">Volume</th><th class="num">Trades</th></tr></thead>
+      <tbody id="symTable"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Flagged activity <span class="count" id="alertCount">0</span></h2>
+    <div id="alerts"><div class="empty">Waiting for the first alert…</div></div>
+  </section>
+</main>
+
+<footer>
+  <span>detectors: rolling z-score (price return, volume) + isolation forest (joint features)</span>
+  <span id="connStatus">connecting…</span>
+</footer>
+
+<script>
+const symTable = document.getElementById('symTable');
+const alertsEl = document.getElementById('alerts');
+const ticker = document.getElementById('ticker');
+const symbols = {}; // symbol -> {price, prevPrice, volume, trades, row}
+let tradesSeen = 0, alertsRaised = 0;
+
+function fmtPrice(p){ return '$' + Number(p).toFixed(2); }
+function fmtTime(ts){
+  const d = new Date(ts*1000);
+  return d.toLocaleTimeString([], {hour12:false});
+}
+
+function ensureRow(symbol){
+  if (symbols[symbol]) return symbols[symbol];
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="sym">${symbol}</td><td class="num price">–</td><td class="num chg">–</td><td class="num vol">–</td><td class="num cnt">0</td>`;
+  symTable.appendChild(tr);
+  const state = {price:null, prevClose:null, volume:0, trades:0, row:tr};
+  symbols[symbol] = state;
+  document.getElementById('symCount').textContent = Object.keys(symbols).length;
+  return state;
+}
+
+function updateSymbol(trade){
+  const st = ensureRow(trade.symbol);
+  st.prevClose = st.price ?? trade.price;
+  st.price = trade.price;
+  st.volume += trade.volume;
+  st.trades += 1;
+
+  const chg = st.prevClose ? ((st.price - st.prevClose) / st.prevClose) * 100 : 0;
+  st.row.querySelector('.price').textContent = fmtPrice(st.price);
+  const chgEl = st.row.querySelector('.chg');
+  chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+  chgEl.className = 'num chg ' + (chg >= 0 ? 'up' : 'down');
+  st.row.querySelector('.vol').textContent = st.volume.toLocaleString();
+  st.row.querySelector('.cnt').textContent = st.trades;
+
+  st.row.classList.remove('flash'); void st.row.offsetWidth; st.row.classList.add('flash');
+
+  renderTicker();
+}
+
+function renderTicker(){
+  const items = Object.entries(symbols).map(([sym, st]) => {
+    const chg = st.prevClose ? ((st.price - st.prevClose) / st.prevClose) * 100 : 0;
+    const cls = chg >= 0 ? 'up' : 'down';
+    const arrow = chg >= 0 ? '▲' : '▼';
+    return `<span class="ticker-item"><b>${sym}</b> ${fmtPrice(st.price)} <span class="${cls}">${arrow} ${Math.abs(chg).toFixed(2)}%</span></span>`;
+  }).join('');
+  ticker.innerHTML = items + items; // duplicate for seamless loop
+}
+
+function addAlert(alert){
+  if (alertsEl.querySelector('.empty')) alertsEl.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'alert' + (alert.is_injected_anomaly ? ' injected' : '');
+  const reasons = alert.reasons.map(r => `<div>• ${r}</div>`).join('');
+  div.innerHTML = `
+    <div class="alert-top">
+      <span class="alert-sym">${alert.symbol}</span>
+      <span class="alert-time">${fmtTime(alert.timestamp)}</span>
+    </div>
+    <div class="alert-reason">${reasons}</div>
+    <span class="tag">${fmtPrice(alert.price)}</span>
+    <span class="tag">vol ${alert.volume.toLocaleString()}</span>
+  `;
+  alertsEl.prepend(div);
+  while (alertsEl.children.length > 60) alertsEl.removeChild(alertsEl.lastChild);
+}
+
+function refreshHeaderStats(){
+  document.getElementById('statTrades').textContent = tradesSeen.toLocaleString();
+  document.getElementById('statAlerts').textContent = alertsRaised.toLocaleString();
+  document.getElementById('statRate').textContent = tradesSeen ? ((alertsRaised/tradesSeen)*100).toFixed(2)+'%' : '0.0%';
+  document.getElementById('alertCount').textContent = alertsRaised.toLocaleString();
+}
+
+function loadSnapshot(snap){
+  tradesSeen = snap.stats.trades_seen;
+  alertsRaised = snap.stats.alerts_raised;
+  (snap.recent_trades || []).forEach(updateSymbol);
+  (snap.recent_alerts || []).slice().reverse().forEach(addAlert);
+  refreshHeaderStats();
+}
+
+const es = new EventSource('/stream');
+const connStatus = document.getElementById('connStatus');
+es.onopen = () => connStatus.textContent = 'connected';
+es.onerror = () => connStatus.textContent = 'reconnecting…';
+
+es.addEventListener('snapshot', (e) => loadSnapshot(JSON.parse(e.data)));
+
+es.addEventListener('tick', (e) => {
+  const payload = JSON.parse(e.data);
+  tradesSeen += 1;
+  updateSymbol(payload.trade);
+  if (payload.type === 'alert' && payload.alert) {
+    alertsRaised += 1;
+    addAlert(payload.alert);
+  }
+  refreshHeaderStats();
+});
+</script>
+</body>
+</html>
