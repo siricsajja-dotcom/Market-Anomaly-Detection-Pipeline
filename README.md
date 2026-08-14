@@ -1,4 +1,4 @@
-# market-anomaly-detection
+# market-anomaly-detection - July 2026
 
 A real-time market surveillance pipeline: a simulated trade feed streams
 through a combined statistical + ML anomaly detector, and flagged events
